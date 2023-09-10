@@ -59,6 +59,7 @@ class TestSlug(TestCase):
     def setUpTestData(cls):
         cls.author = User.objects.create(username='testuser1')
         cls.reader = User.objects.create(username='testuser2')
+        cls.client = Client()
         cls.auth_client = Client()
         cls.auth_client.force_login(cls.author)
         cls.reader_client = Client()
@@ -97,13 +98,19 @@ class TestSlug(TestCase):
         self.assertEqual(self.note.slug, self.form_data['slug'])
 
     def test_other_user_cant_edit_note(self):
-        url = reverse('notes:edit', args=(self.note.slug,))
-        response = self.reader_client.post(url, self.form_data)
-        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
-        note_from_db = Note.objects.get(id=self.note.id)
-        self.assertEqual(self.note.title, note_from_db.title)
-        self.assertEqual(self.note.text, note_from_db.text)
-        self.assertEqual(self.note.slug, note_from_db.slug)
+        user_statuses = [
+            (self.reader_client, HTTPStatus.NOT_FOUND),
+            (self.client, HTTPStatus.FOUND)
+        ]
+        for user, status in user_statuses:
+            with self.subTest(user=user):
+                url = reverse('notes:edit', args=(self.note.slug,))
+                response = user.post(url, self.form_data)
+                self.assertEqual(response.status_code, status)
+                note_from_db = Note.objects.get(id=self.note.id)
+                self.assertEqual(self.note.title, note_from_db.title)
+                self.assertEqual(self.note.text, note_from_db.text)
+                self.assertEqual(self.note.slug, note_from_db.slug)
 
     def test_author_can_delete_note(self):
         url = reverse('notes:delete', args=(self.note.slug,))

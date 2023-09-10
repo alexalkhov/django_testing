@@ -10,7 +10,8 @@ pytestmark = pytest.mark.django_db
 
 
 def test_anonymous_user_cant_create_comment(client, page_detail, form_data):
-    client.post(page_detail, data=form_data)
+    response = client.post(page_detail, data=form_data)
+    assert response.status_code == HTTPStatus.FOUND
     assert Comment.objects.count() == 0
 
 
@@ -51,9 +52,20 @@ def test_author_can_delete_comment(page_detail, author_client, delete_url):
     assert before != Comment.objects.count()
 
 
-def test_user_cant_delete_comment_of_another_user(admin_client, delete_url):
-    response = admin_client.delete(delete_url)
-    assert response.status_code == HTTPStatus.NOT_FOUND
+@pytest.mark.parametrize(
+    'parametrized_client, expected_status',
+    (
+        (pytest.lazy_fixture('admin_client'), HTTPStatus.NOT_FOUND),
+        (pytest.lazy_fixture('client'), HTTPStatus.FOUND)
+    ),
+)
+def test_users_cant_delete_comment_of_another_user(
+    delete_url,
+    parametrized_client,
+    expected_status
+):
+    response = parametrized_client.delete(delete_url)
+    assert response.status_code == expected_status
     comments_count = Comment.objects.count()
     assert comments_count == 1
 
